@@ -1,0 +1,71 @@
+---
+title: "Predicting Substance Use Diagnoses"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Classification Application:
+Can we use mental health demographic and diagnosis data collected by SAMHSA Service Providers to predict substance use?
+
+
+```{r }
+library(tidyverse)
+
+summary(df)
+data <- df %>%
+  #removing categories selecting primary, secondary, and terciary Mental Health Diagnosis (we have other binary variables for all MH diagnoses)
+  #removing category for substance use type
+  select(-YEAR, -MH1, -MH2, -MH3,-SUB)
+
+#filter out instances of missing value for substance use problem
+# create the binary target variable
+
+data$SAP
+data <- data %>%
+  filter(SAP != -9) %>%
+mutate(SAP = if_else(SAP == "1", "1", "0")) %>%
+mutate(SAP = as.factor(SAP))
+```
+
+## Exploratory Data Analysis
+```{r }
+table(data$RACE)
+table(data$RACE,data$GENDER)
+
+```
+
+
+```{r }
+#1 - Estimate a Model
+
+library(tidymodels)
+
+#a. Split the data into training and testing sets with seed 20201020
+
+set.seed(20201020)
+#create a split object
+sampled_split <- initial_split(data = sampled_df, prop = 0.8)
+
+#create the training and testing data
+
+sampled_train <- training(x = sampled_split)
+sampled_test <- testing(x = sampled_split)
+
+#hide original dataset
+rm(sampled_df)
+
+#b. Create a recipe with (at least) themis::step_downsample(grade). Downsampling is one technique to deal with class imbalances. Only one step is required but you can use more.
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
