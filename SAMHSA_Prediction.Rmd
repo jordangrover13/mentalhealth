@@ -25,7 +25,7 @@ summary(df$EDUC)
 data <- df %>%
   #removing categories selecting primary, secondary, and terciary Mental Health Diagnosis (we have other binary variables for all MH diagnoses)
   #removing category for substance use type
-  select(-YEAR, -MH1, -MH2, -MH3,-SUB, -REGION, -DIVISION, -ALCSUBFLG, -NUMMHS)
+  select(-YEAR, -MH1, -MH2, -MH3,-SUB, -REGION, -DIVISION, -ALCSUBFLG, -NUMMHS, -CASEID)
 
 #filter out instances of missing value for substance use problem
 # create the binary target variable
@@ -85,7 +85,7 @@ In using this algorithm, we would like to be identify people who have a higher p
 
 State the predictor variables included in the model and necessary preprocessing for each variable
 
-For all three models, we will use age, ethnicity, race, gender, veteran status, education, SPHSERVICE (whether a client was seen at a state psychiatric hospital), CMPSERVICE (whether a client was served at a community based program),  OPISERVICE, (whether a client was served in 'other psychiatric inpatient center'), RTCSERVICE (whether a client was served in a residential treatment center), IJSSERVICE (whether a client was served by an institution under the justice system), marital status, employment status, reasons for not being in the labor force, residential status, reporting state, and binary indicators for a series of potential diagnoses they may have: trauma-or stress related disorder, anxiety disorder, attention deficit/hyperactivity, conduct disorder, delirium/dementia disorder, bipolar disorder, depressive disorder, oppositional defiant disorder, pervasive developmental disorder, personality disorder, schizophrenia or other psychotic disorder, other mental disorder. Most variables are binary or categorical, but age and education status are ordinal, and will need numeric weights. Also, the dataset uses numeric codes for each number, so we will need our recipe to read the numeric codes as categories. -9 has been used to specify missing values, which we will convert as well.
+For all three models, we will use age, ethnicity, race, gender, veteran status, education, SPHSERVICE (whether a client was seen at a state psychiatric hospital), CMPSERVICE (whether a client was served at a community based program),  OPISERVICE, (whether a client was served in 'other psychiatric inpatient center'), RTCSERVICE (whether a client was served in a residential treatment center), IJSSERVICE (whether a client was served by an institution under the justice system), marital status, employment status, reasons for not being in the labor force, residential status, reporting state, and binary indicators for a series of potential diagnoses they may have: trauma-or stress related disorder, anxiety disorder, attention deficit/hyperactivity, conduct disorder, delirium/dementia disorder, bipolar disorder, depressive disorder, oppositional defiant disorder, pervasive developmental disorder, personality disorder, schizophrenia or other psychotic disorder, other mental disorder. Most variables are binary or categorical, but age and education status are ordinal, and will need numeric weights. Also, the dataset uses numeric codes for each number, so we will need our recipe to read the numeric codes as categories. -9 has been used to specify missing values, but we have converted this to NA.
 
 
 • Use at least least two different types of preprocessing
@@ -110,74 +110,187 @@ employ <- c("full", "part","employed", "unemployed", "not in labor force")
 detnlf <- c("retired", "student", "homemaker", "sheltered", "other")
 veteran <- c("yes", "no")
 livarag <- c("homeless", "private", "other")
-trauma <- c("yes", "no")
-anxiety <- c("yes", "no")
-adhd <- c("yes", "no")
-conduct <- c("yes", "no")
-delirdem <- c("yes", "no")
-bipolar <- c("yes", "no")
-depress <- c("yes", "no")
-oppositional <- c("yes", "no")
-pddflg <- c("yes", "no")
-person <- c("yes", "no")
-schizo <- c("yes", "no")
-other <- c("yes", "no")
 state <- c("AL", "AK","AR","CA","CO","CT","DE","DC","FL","HI","ID","IL","IN","KY", "LA","MD", "MA","MI","MN", "MS","MO", "MT", "NE", "NV", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WI", "WY", "PR", "Other")
 
+#the indicators below were not needed
+trauma <- c("no", "yes")
+anxiety <- c("no", "yes")
+adhd <- c("yes", "no")
+conduct <- c("no", "yes")
+delirdem <- c("no", "yes")
+bipolar <- c("no", "yes")
+depress <- c("no", "yes")
+oppositional <- c("no", "yes")
+pddflg <- c("no", "yes")
+person <- c("no", "yes")
+schizo <- c("no", "yes")
+other <- c("no", "yes")
 
+
+library(tidymodels)
 
 rec <-
   recipe(SAP ~ ., data = data_train) %>%
   step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = race ) %>%
-  step_num2factor(ETHNIC, levels = gender ) %>%
-  step_num2factor(ETHNIC, levels = sphsvice ) %>%
-  step_num2factor(ETHNIC, levels = cmpservice ) %>%
-  step_num2factor(ETHNIC, levels = opiservice ) %>%
-  step_num2factor(ETHNIC, levels = rtcservice ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
-  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(RACE, levels = race ) %>%
+  step_num2factor(GENDER, levels = gender ) %>%
+  step_num2factor(SPHSERVICE, levels = sphsvice ) %>%
+  step_num2factor(CMPSERVICE, levels = cmpservice ) %>%
+  step_num2factor(OPISERVICE, levels = opiservice ) %>%
+  step_num2factor(RTCSERVICE, levels = rtcservice ) %>%
+  step_num2factor(IJSSERVICE, levels = ijsservice ) %>%
+  step_num2factor(MARSTAT, levels = marstat ) %>%
+  step_num2factor(SMISED, levels = smised ) %>%
+  step_num2factor(EMPLOY, levels = employ ) %>%
+  step_num2factor(DETNLF, levels = detnlf ) %>%
+  step_num2factor(VETERAN, levels = veteran ) %>%
+  step_num2factor(LIVARAG, levels = livarag ) %>%
+  step_num2factor(STATEFIP, levels = state ) %>%
+  prep(retain = TRUE) 
+
+## didn't use this because already dummy variables %>%
+ # step_num2factor(TRAUSTREFLG, levels = trauma ) %>%
+ # step_num2factor(ANXIETYFLG, levels = anxiety ) %>%
+ # step_num2factor(ADHDFLG, levels = adhd ) %>%
+ # step_num2factor(CONDUCTFLG, levels = conduct ) %>%
+# step_num2factor(DELIRDEMFLG, levels = delirdem ) %>%
+  #step_num2factor(BIPOLARFLG, levels = bipolar ) %>%
+  #step_num2factor(DEPRESSFLG, levels = depress ) %>%
+ # step_num2factor(ODDFLG, levels = oppositional ) %>%
+  #step_num2factor(PDDFLG, levels = pddflg ) %>%
+ # step_num2factor(PERSONFLG, levels = person ) %>%
+ # step_num2factor(SCHIZOFLG, levels = schizo ) %>%
+ # step_num2factor(OTHERDISFLG, levels = other ) %>%
+ # 
+
+#this just helps me understand what my step_num2factor did
+encoded <- rec  %>% bake(new_data = NULL)
+table(encoded$LIVARAG, data_train$LIVARAG)
+
+
+# see the engineered training data
+bake(prep(rec, training = data_train), new_data = data_train)
+
+
+```
+
+## Create Models - LASSO
+```{r }
+
+
+# set up resampling using 10-fold cross validation
+#always set a seed before we do any random process
+set.seed(20211102)
+#splits the data into 10 different chunks
+folds <- vfold_cv(data = data_train, v = 10, repeats = 1)
+
+
+# create a tuning grid for lasso regularization, varying the regularization penalty
+lasso_grid <- grid_regular(penalty(), levels = 10)
+
+# create a linear_regression model so that you can tune the penalty parameter
+# set the mixture parameter to 1 and use "glmnet" for the engine
+lasso_mod <- linear_reg(penalty = tune(), mixture = 1)%>%
+  set_engine(engine = "glmnet")
+
+# create a workflow using your updated linear regression model you just created and the same recipe
+# you defined above
+lasso_wf <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(spec = lasso_mod) 
+
+#all models use tune_grid for hyperparemeter models. You could specify it directly, but tuning lets
+#you fit  
+
+# perform hyperparameter tuning using the lasso_grid and the 
+# cross_validation folds you created above by modifying the line below
+lasso_cv <- lasso_wf %>%
+            tune_grid(resamples = folds,
+            grid = lasso_grid)
+
+# select the best model based on the "rmse" metric
+lasso_best <- lasso_cv %>%
+  select_best(metric = "rmse")
+  
+# use the finalize_workflow() function with your lasso workflow and the best model 
+# to update (or "finalize") your workflow by modifying the line below
+lasso_final <- finalize_workflow(
+             lasso_wf,
+              parameters = lm_best )
+
+# fit to the training data and extract coefficients
+lasso_coefs <- lasso_final %>%
+  fit(data = ames_train) %>%
+  extract_fit_parsnip() %>%
+  vi(lambda = lasso_best$penalty) 
 
 
 
 ```
 
-## Exploratory Data Analysis
-```{r }
-prop.table(data$RACE)
-prop.table(data$RACE,data$GENDER)
+## Create Models - LM
 
+```{r }
+# create a linear regression model using the "lm" package as the engine
+lm_mod <- linear_reg(engine = "lm")
+
+# create a workflow with the recipe and linear regression model you've created
+lm_wf <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(spec = lm_mod) 
+
+# fit the model by piping your workflow to fit_resamples() by updating the line below
+#passes the folds that we created earlier to fit our model
+lm_cv <- lm_wf %>%
+  fit_resamples(resamples = folds)
+  
+# select the best model based on the "rmse" metric
+# you can tell tidymodels what you
+lm_best <- lm_cv %>%
+  select_best(metric = "rmse")
+
+# use the finalize_workflow() function with your workflow and the best model 
+# to update (or "finalize") your workflow by modifying the line below
+lm_final <- finalize_workflow(
+  lm_wf,
+  parameters = lm_best
+)
+
+# fit to the training data and extract coefficients
+lm_coefs <- lm_final %>%
+  fit(data = data_train) %>%
+  extract_fit_parsnip()
 ```
 
-
+## Models - Decision Tree
 ```{r }
-#1 - Estimate a Model
 
-library(tidymodels)
+# create a cart model object
+cart_mod <-
+  decision_tree() %>%
+  set_engine(engine = "rpart") %>%
+  set_mode(mode = "classification")
 
-#a. Split the data into training and testing sets with seed 20201020
+# fit the model
+cart_fit <- cart_mod %>%
+  fit(formula = SAP~., data = data_train)
 
-set.seed(20201020)
-#create a split object
-sampled_split <- initial_split(data = sampled_df, prop = 0.8)
-
-#create the training and testing data
+# create a tree
+rpart.plot::rpart.plot(x = cart_fit$fit, roundint = FALSE)
 
 
-sampled_train <- training(x = sampled_split)
-sampled_test <- testing(x = sampled_split)
+# Create a confusion matrix using your model estimated on the training data 
 
-#hide original dataset
-rm(sampled_df)
+# create a workflow
+cart_wf <- workflow() %>%
+  add_recipe(rec) %>%
+  add_model(cart_mod)
 
-#b. Create a recipe with (at least) themis::step_downsample(grade). Downsampling is one technique to deal with class imbalances. Only one step is required but you can use more.
+# fit the model
+cart_fit <- cart_wf %>%
+  fit(data = data_train)
+
+
 ```
 
 ## Including Plots
