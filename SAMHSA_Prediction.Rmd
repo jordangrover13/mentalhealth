@@ -27,54 +27,70 @@ data <- df %>%
   #removing category for substance use type
   select(-YEAR, -MH1, -MH2, -MH3,-SUB, -REGION, -DIVISION, -ALCSUBFLG, -NUMMHS, -CASEID)
 
-#filter out instances of missing value for substance use problem
-# create the binary target variable
 
+#filter out instances of missing value for substance use problem. 
 data <- data %>%
   filter(!is.na(SAP)) %>%
 mutate(SAP = if_else(SAP == "1", "1", "0")) %>%
-mutate(SAP = as.factor(SAP))
+  #ensure SAP is binary factor
+  mutate(SAP = as.factor(SAP))
 
 summary(data$SAP)
 ```
 
-## Split into testing and training
+#Attempt 1: Turn all numeric variables into nominal variables before creating a recipe that converts those to dummies. 
+
+```{r }
+
+# create the binary variables
+data2 <- data %>%
+mutate(RACE = as.factor(RACE))%>%
+mutate(GENDER = as.factor(GENDER))%>%
+mutate(ETHNIC = as.factor(ETHNIC))%>%
+mutate(CMPSERVICE = as.factor(CMPSERVICE))%>%
+mutate(OPISERVICE = as.factor(OPISERVICE))%>%
+mutate(RTCSERVICE = as.factor(RTCSERVICE))%>%
+mutate(IJSSERVICE = as.factor(IJSSERVICE))%>%
+mutate(MARSTAT = as.factor(MARSTAT))%>%
+mutate(SMISED = as.factor(SMISED))%>%
+mutate(EMPLOY = as.factor(EMPLOY))%>%
+mutate(DETNLF = as.factor(DETNLF))%>%
+mutate(VETERAN = as.factor(VETERAN))%>%
+mutate(LIVARAG = as.factor(LIVARAG))%>%
+mutate(STATEFIP = as.factor(STATEFIP))
+
+summary(data$SAP)
+```
+
+## Attempt 1 : Split into testing and training
 
 ```{r}
 library(tidymodels)
 #1. Split the data into training and testing data
 set.seed(20200229)
 #create a split object
-data_split <- initial_split(data = data, prop = 0.8)
+data_split <- initial_split(data = data2, prop = 0.8)
 #create the training and testing data
 data_train <- training(x = data_split)
 data_test <- testing(x = data_split)
-#hide original dataset
-rm(data)
+
 ```
 
 ```{r }
-#make sure all variables are characters before attempting summary statistics
-sumdata<- data_train %>%
-  mutate(RACE = as.character(RACE)) %>%
-  mutate(GENDER = as.character(GENDER)) %>%
-  mutate(EDUC = as.character(EDUC)) %>%
-  mutate(ETHNIC = as.character(ETHNIC)) %>%
-  mutate(VETERAN = as.character(VETERAN)) %>%
-  mutate(SAP = as.character(SAP))
+
 
 #Exploratory Data Analysis
-table(sumdata$SAP)
-table(sumdata$VETERAN)
-table(sumdata$RACE,sumdata$GENDER)
-table(sumdata$GENDER,sumdata$SAP)
-ggplot(sumdata, aes(x=GENDER, fill=RACE)) + geom_bar(position="dodge")
-ggplot(sumdata, aes(x = EDUC, fill=RACE)) + geom_bar(position = "dodge")
-ggplot(sumdata, aes(x = GENDER, fill=ETHNIC)) + geom_bar(position = "dodge")
-ggplot(sumdata, aes(x = SAP, fill=GENDER)) + geom_bar(position = "dodge")
-ggplot(sumdata, aes(x = SAP, fill=ETHNIC)) + geom_bar(position = "dodge")
-ggplot(sumdata, aes(x = RACE, fill=SAP)) + geom_bar(position = "dodge")
-ggplot(sumdata, aes(x = VETERAN, fill=SAP)) + geom_bar(position = "dodge")
+table(data_test$SAP)
+table(data_test$VETERAN)
+table(data_test$RACE,data_test$GENDER)
+table(data_test$GENDER,data_test$SAP)
+ggplot(data_test, aes(x=GENDER, fill=RACE)) + geom_bar(position="dodge")
+ggplot(data_test, aes(x = EDUC, fill=RACE)) + geom_bar(position = "dodge")
+ggplot(data_test, aes(x = GENDER, fill=ETHNIC)) + geom_bar(position = "dodge")
+ggplot(data_test, aes(x = SAP, fill=GENDER)) + geom_bar(position = "dodge")
+ggplot(data_test, aes(x = SAP, fill=ETHNIC)) + geom_bar(position = "dodge")
+ggplot(data_test, aes(x = RACE, fill=SAP)) + geom_bar(position = "dodge")
+ggplot(data_test, aes(x = VETERAN, fill=SAP)) + geom_bar(position = "dodge")
 ```
 
 ## Error Metric
@@ -94,8 +110,38 @@ For all three models, we will use age, ethnicity, race, gender, veteran status, 
 
 
 ```{r }
-#use step_num2factor() to read numeric variable responses as categorical
+library(tidymodels)
 
+rec <-
+  recipe(SAP ~ ., data = data_train) %>%
+   step_dummy(all_nominal_predictors()) %>%
+  # center and scale all predictors
+  step_normalize(all_predictors()) %>%
+  # drop near zero variance for all predictors
+  step_nzv(all_predictors())
+
+
+# see the engineered training data
+bake(prep(rec, training = data_train), new_data = data_train)
+#won't run (Value of SET_STRING_ELT() must be a 'CHARSXP' not a 'NULL') or before I was getting that error, times out
+```
+
+
+#Attempt 2: Instead of converting all numeric variables into nominal variables first, rely on step_num2factor() in the recipe to read numeric variable responses as categorical. SAP will still need to be converted. specify what the options are for each predictor.
+
+```{r}
+library(tidymodels)
+#1. Split the data into training and testing data
+set.seed(20200229)
+#create a split object
+data_split2 <- initial_split(data = data, prop = 0.8)
+#create the training and testing data
+data_train2 <- training(x = data_split2)
+data_test2 <- testing(x = data_split2)
+```
+
+
+```{r }
 ethnic <- c("mexican", "puerto rican", "other", "non")
 race <- c("american indian", "asian", "black", "native", "white", "other")
 gender <- c("male", "female")
@@ -113,24 +159,52 @@ livarag <- c("homeless", "private", "other")
 state <- c("AL", "AK","AR","CA","CO","CT","DE","DC","FL","HI","ID","IL","IN","KY", "LA","MD", "MA","MI","MN", "MS","MO", "MT", "NE", "NV", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WI", "WY", "PR", "Other")
 
 #the indicators below were not needed
-trauma <- c("no", "yes")
-anxiety <- c("no", "yes")
-adhd <- c("yes", "no")
-conduct <- c("no", "yes")
-delirdem <- c("no", "yes")
-bipolar <- c("no", "yes")
-depress <- c("no", "yes")
-oppositional <- c("no", "yes")
-pddflg <- c("no", "yes")
-person <- c("no", "yes")
-schizo <- c("no", "yes")
-other <- c("no", "yes")
+#trauma <- c("no", "yes")
+#anxiety <- c("no", "yes")
+#adhd <- c("yes", "no")
+#conduct <- c("no", "yes")
+#delirdem <- c("no", "yes")
+#bipolar <- c("no", "yes")
+#depress <- c("no", "yes")
+#oppositional <- c("no", "yes")
+#pddflg <- c("no", "yes")
+#person <- c("no", "yes")
+#schizo <- c("no", "yes")
+#other <- c("no", "yes")
+```
+
+## Attempt 2 summary stats
+
+```{r }
+#make sure all variables are characters before attempting summary statistics
+sumdata<- data_train2 %>%
+  mutate(RACE = as.character(RACE)) %>%
+  mutate(GENDER = as.character(GENDER)) %>%
+  mutate(EDUC = as.character(EDUC)) %>%
+  mutate(ETHNIC = as.character(ETHNIC)) %>%
+  mutate(VETERAN = as.character(VETERAN)) %>%
+  mutate(SAP = as.character(SAP))
 
 
-library(tidymodels)
+#Exploratory Data Analysis
+table(data_train2$SAP)
+table(data_train2$VETERAN)
+table(data_train2$RACE,data_train2$GENDER)
+table(data_train2$GENDER,data_train2$SAP)
+ggplot(data_train2, aes(x=GENDER, fill=RACE)) + geom_bar(position="dodge")
+ggplot(data_train2, aes(x = EDUC, fill=RACE)) + geom_bar(position = "dodge")
+ggplot(data_train2, aes(x = GENDER, fill=ETHNIC)) + geom_bar(position = "dodge")
+ggplot(data_train2, aes(x = SAP, fill=GENDER)) + geom_bar(position = "dodge")
+ggplot(data_train2, aes(x = SAP, fill=ETHNIC)) + geom_bar(position = "dodge")
+ggplot(data_train2, aes(x = RACE, fill=SAP)) + geom_bar(position = "dodge")
+ggplot(data_train2, aes(x = VETERAN, fill=SAP)) + geom_bar(position = "dodge")
+```
 
-rec <-
-  recipe(SAP ~ ., data = data_train) %>%
+#Attempt Two Recipe
+
+```{r }
+
+rec2 <-  recipe(SAP ~ ., data = data_train2) %>%
   step_num2factor(ETHNIC, levels = ethnic ) %>%
   step_num2factor(RACE, levels = race ) %>%
   step_num2factor(GENDER, levels = gender ) %>%
@@ -146,7 +220,8 @@ rec <-
   step_num2factor(VETERAN, levels = veteran ) %>%
   step_num2factor(LIVARAG, levels = livarag ) %>%
   step_num2factor(STATEFIP, levels = state ) %>%
-  prep(retain = TRUE) 
+  prep()
+
 
 ## didn't use this because already dummy variables %>%
  # step_num2factor(TRAUSTREFLG, levels = trauma ) %>%
@@ -164,25 +239,40 @@ rec <-
  # 
 
 #this just helps me understand what my step_num2factor did
-encoded <- rec  %>% bake(new_data = NULL)
+encoded <- rec2  %>% bake(new_data = NULL)
 table(encoded$LIVARAG, data_train$LIVARAG)
 
+```
+## Models Using Attempt #2 - Decision Tree
+```{r }
 
-# see the engineered training data
-bake(prep(rec, training = data_train), new_data = data_train)
+# create a cart model object
+cart_mod <-
+  decision_tree() %>%
+  set_engine(engine = "rpart") %>%
+  set_mode(mode = "classification")
 
+# fit the model
+cart_fit <- cart_mod %>%
+  fit(formula = SAP~., data = data_train)
+#won't run
+
+# create a tree
+rpart.plot::rpart.plot(x = cart_fit$fit, roundint = FALSE)
 
 ```
 
-## Create Models - LASSO
-```{r }
 
+
+## Create Models (Attempt 2) - LASSO
+```{r }
+library(tidymodels)
 
 # set up resampling using 10-fold cross validation
 #always set a seed before we do any random process
 set.seed(20211102)
 #splits the data into 10 different chunks
-folds <- vfold_cv(data = data_train, v = 10, repeats = 1)
+folds <- vfold_cv(data = data_train2, v = 10, repeats = 1)
 
 
 # create a tuning grid for lasso regularization, varying the regularization penalty
@@ -196,7 +286,7 @@ lasso_mod <- linear_reg(penalty = tune(), mixture = 1)%>%
 # create a workflow using your updated linear regression model you just created and the same recipe
 # you defined above
 lasso_wf <- workflow() %>%
-  add_recipe(rec) %>%
+  add_recipe(rec2) %>%
   add_model(spec = lasso_mod) 
 
 #all models use tune_grid for hyperparemeter models. You could specify it directly, but tuning lets
@@ -207,6 +297,7 @@ lasso_wf <- workflow() %>%
 lasso_cv <- lasso_wf %>%
             tune_grid(resamples = folds,
             grid = lasso_grid)
+#runs (very slowly), but error in each fold. 
 
 # select the best model based on the "rmse" metric
 lasso_best <- lasso_cv %>%
@@ -228,21 +319,31 @@ lasso_coefs <- lasso_final %>%
 
 ```
 
-## Create Models - LM
+## Create Models (Attempt 2) - LM
 
 ```{r }
+library(tidymodels)
+
+
+# set up resampling using 10-fold cross validation
+#always set a seed before we do any random process
+set.seed(20211102)
+#splits the data into 10 different chunks
+folds <- vfold_cv(data = data_train2, v = 10, repeats = 1)
+
 # create a linear regression model using the "lm" package as the engine
 lm_mod <- linear_reg(engine = "lm")
 
 # create a workflow with the recipe and linear regression model you've created
 lm_wf <- workflow() %>%
-  add_recipe(rec) %>%
+  add_recipe(rec2) %>%
   add_model(spec = lm_mod) 
 
 # fit the model by piping your workflow to fit_resamples() by updating the line below
 #passes the folds that we created earlier to fit our model
 lm_cv <- lm_wf %>%
   fit_resamples(resamples = folds)
+#won't run, times out or all folds result in errors
   
 # select the best model based on the "rmse" metric
 # you can tell tidymodels what you
@@ -258,47 +359,52 @@ lm_final <- finalize_workflow(
 
 # fit to the training data and extract coefficients
 lm_coefs <- lm_final %>%
-  fit(data = data_train) %>%
+  fit(data = data_train2) %>%
   extract_fit_parsnip()
 ```
 
-## Models - Decision Tree
-```{r }
 
-# create a cart model object
-cart_mod <-
-  decision_tree() %>%
-  set_engine(engine = "rpart") %>%
-  set_mode(mode = "classification")
+## Code if I were to test best model
+```{r}
 
-# fit the model
-cart_fit <- cart_mod %>%
-  fit(formula = SAP~., data = data_train)
-
-# create a tree
-rpart.plot::rpart.plot(x = cart_fit$fit, roundint = FALSE)
+# Evaluate the Model
+#Assuming my tree model worked best
 
 
-# Create a confusion matrix using your model estimated on the training data 
+# predict the predicted class and the predicted probability of each class
+predictions <- bind_cols(
+ data_test2,
+  predict(object = cart_fit, new_data =   data_test2),
+  predict(object = cart_fit, new_data = data_test2, type = "prob")
+) 
 
-# create a workflow
-cart_wf <- workflow() %>%
-  add_recipe(rec) %>%
-  add_model(cart_mod)
+select(predictions, SAP, starts_with(".pred"))
 
-# fit the model
-cart_fit <- cart_wf %>%
-  fit(data = data_train)
+
+conf_mat(data = predictions,
+         truth = SAP,
+         estimate = .pred_class) 
+
+#b. Calculate the precision and recall/sensitivity using library(tidymodels).
+
+#Calculate the accuracy
+accuracy(data = predictions,
+         truth = SAP,
+         estimate = .pred_class)
+
+#Calculate the precision
+precision(data = predictions,
+         truth = SAP,
+         estimate = .pred_class)
+
+#Calculate the recall/sensitivity
+recall(data = predictions,
+         truth = SAP,
+         estimate = .pred_class)
 
 
 ```
 
-## Including Plots
+#Interpretation
 
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+I still think it is possible to get this model to work, but I can't seem to find a recipe that will process correctly. It's hard to say if I would be able to capture a model with a high recall/sensitivity in order to make the model worth using, but I am also struggling to use LASSO and LM models for this classification problem, although I believe it should be possible. The biggest challenge has been the size/complexity of the model. Almost all of the variables are categorical, and expanding them into dummies seems to slow down R's ability to process the model. I would love to use a Random forest model, but after spending over 10 hours on this project already, I'm going to bow out and county my losses. Other feature choices I would like to try: counting the NAs as predictors for certain variables (maybe not selecting whether or not you are a veteran, for example, has a correlation to drug use), creating groups of states instead of using each state as a category (maybe geographic region can be used as a predictor, but in more generic terms, not bound by state lines). 
