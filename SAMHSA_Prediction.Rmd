@@ -13,27 +13,146 @@ Can we use mental health demographic and diagnosis data collected by SAMHSA Serv
 
 ```{r }
 library(tidyverse)
-
+load("C:/Users/JordanGrover/OneDrive/Georgetown/DataScience/MentalHealthStretch/mhcld_puf_2019_r.RData")
+colnames(df)
 summary(df)
+
+#replace all other values of -9 with NA
+df[df == -9] <- NA
+summary(df$EDUC)
+
+
 data <- df %>%
   #removing categories selecting primary, secondary, and terciary Mental Health Diagnosis (we have other binary variables for all MH diagnoses)
   #removing category for substance use type
-  select(-YEAR, -MH1, -MH2, -MH3,-SUB)
+  select(-YEAR, -MH1, -MH2, -MH3,-SUB, -REGION, -DIVISION, -ALCSUBFLG, -NUMMHS)
 
 #filter out instances of missing value for substance use problem
 # create the binary target variable
 
-data$SAP
 data <- data %>%
-  filter(SAP != -9) %>%
+  filter(!is.na(SAP)) %>%
 mutate(SAP = if_else(SAP == "1", "1", "0")) %>%
 mutate(SAP = as.factor(SAP))
+
+summary(data$SAP)
+```
+
+## Split into testing and training
+
+```{r}
+library(tidymodels)
+#1. Split the data into training and testing data
+set.seed(20200229)
+#create a split object
+data_split <- initial_split(data = data, prop = 0.8)
+#create the training and testing data
+data_train <- training(x = data_split)
+data_test <- testing(x = data_split)
+#hide original dataset
+rm(data)
+```
+
+```{r }
+#make sure all variables are characters before attempting summary statistics
+sumdata<- data_train %>%
+  mutate(RACE = as.character(RACE)) %>%
+  mutate(GENDER = as.character(GENDER)) %>%
+  mutate(EDUC = as.character(EDUC)) %>%
+  mutate(ETHNIC = as.character(ETHNIC)) %>%
+  mutate(VETERAN = as.character(VETERAN)) %>%
+  mutate(SAP = as.character(SAP))
+
+#Exploratory Data Analysis
+table(sumdata$SAP)
+table(sumdata$VETERAN)
+table(sumdata$RACE,sumdata$GENDER)
+table(sumdata$GENDER,sumdata$SAP)
+ggplot(sumdata, aes(x=GENDER, fill=RACE)) + geom_bar(position="dodge")
+ggplot(sumdata, aes(x = EDUC, fill=RACE)) + geom_bar(position = "dodge")
+ggplot(sumdata, aes(x = GENDER, fill=ETHNIC)) + geom_bar(position = "dodge")
+ggplot(sumdata, aes(x = SAP, fill=GENDER)) + geom_bar(position = "dodge")
+ggplot(sumdata, aes(x = SAP, fill=ETHNIC)) + geom_bar(position = "dodge")
+ggplot(sumdata, aes(x = RACE, fill=SAP)) + geom_bar(position = "dodge")
+ggplot(sumdata, aes(x = VETERAN, fill=SAP)) + geom_bar(position = "dodge")
+```
+
+## Error Metric
+
+In using this algorithm, we would like to be identify people who have a higher propensity to have a substance abuse issues. Our policy wouldn't screen out negative predictions from care, but it would add an extra layer of screening for individuals who our model predicts positive to receive follow-up questions. For that reason, we care less about model accuracy and more about capturing as much of the positive population in the predcted positive. We want to have a high recall/sensitivity. 80% or higher would be idea. 
+
+## Come up with Models
+
+State the predictor variables included in the model and necessary preprocessing for each variable
+
+For all three models, we will use age, ethnicity, race, gender, veteran status, education, SPHSERVICE (whether a client was seen at a state psychiatric hospital), CMPSERVICE (whether a client was served at a community based program),  OPISERVICE, (whether a client was served in 'other psychiatric inpatient center'), RTCSERVICE (whether a client was served in a residential treatment center), IJSSERVICE (whether a client was served by an institution under the justice system), marital status, employment status, reasons for not being in the labor force, residential status, reporting state, and binary indicators for a series of potential diagnoses they may have: trauma-or stress related disorder, anxiety disorder, attention deficit/hyperactivity, conduct disorder, delirium/dementia disorder, bipolar disorder, depressive disorder, oppositional defiant disorder, pervasive developmental disorder, personality disorder, schizophrenia or other psychotic disorder, other mental disorder. Most variables are binary or categorical, but age and education status are ordinal, and will need numeric weights. Also, the dataset uses numeric codes for each number, so we will need our recipe to read the numeric codes as categories. -9 has been used to specify missing values, which we will convert as well.
+
+
+• Use at least least two different types of preprocessing
+• Use at least two different algorithms (i.e. linear regression, KNN, CART, random forest).
+• Use at least one algorithm with hyperparameters.
+
+
+```{r }
+#use step_num2factor() to read numeric variable responses as categorical
+
+ethnic <- c("mexican", "puerto rican", "other", "non")
+race <- c("american indian", "asian", "black", "native", "white", "other")
+gender <- c("male", "female")
+sphsvice <- c("yes", "no")
+cmpservice <- c("yes", "no")
+opiservice <- c("yes", "no")
+rtcservice <- c("yes", "no")
+ijsservice <- c("yes", "no")
+marstat <- c("never", "married","separated", "divorced")
+smised <- c("smi", "sed","not")
+employ <- c("full", "part","employed", "unemployed", "not in labor force")
+detnlf <- c("retired", "student", "homemaker", "sheltered", "other")
+veteran <- c("yes", "no")
+livarag <- c("homeless", "private", "other")
+trauma <- c("yes", "no")
+anxiety <- c("yes", "no")
+adhd <- c("yes", "no")
+conduct <- c("yes", "no")
+delirdem <- c("yes", "no")
+bipolar <- c("yes", "no")
+depress <- c("yes", "no")
+oppositional <- c("yes", "no")
+pddflg <- c("yes", "no")
+person <- c("yes", "no")
+schizo <- c("yes", "no")
+other <- c("yes", "no")
+state <- c("AL", "AK","AR","CA","CO","CT","DE","DC","FL","HI","ID","IL","IN","KY", "LA","MD", "MA","MI","MN", "MS","MO", "MT", "NE", "NV", "NJ", "NM", "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA", "WI", "WY", "PR", "Other")
+
+
+
+rec <-
+  recipe(SAP ~ ., data = data_train) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = race ) %>%
+  step_num2factor(ETHNIC, levels = gender ) %>%
+  step_num2factor(ETHNIC, levels = sphsvice ) %>%
+  step_num2factor(ETHNIC, levels = cmpservice ) %>%
+  step_num2factor(ETHNIC, levels = opiservice ) %>%
+  step_num2factor(ETHNIC, levels = rtcservice ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+  step_num2factor(ETHNIC, levels = ethnic ) %>%
+
+
+
 ```
 
 ## Exploratory Data Analysis
 ```{r }
-table(data$RACE)
-table(data$RACE,data$GENDER)
+prop.table(data$RACE)
+prop.table(data$RACE,data$GENDER)
 
 ```
 
@@ -50,6 +169,7 @@ set.seed(20201020)
 sampled_split <- initial_split(data = sampled_df, prop = 0.8)
 
 #create the training and testing data
+
 
 sampled_train <- training(x = sampled_split)
 sampled_test <- testing(x = sampled_split)
